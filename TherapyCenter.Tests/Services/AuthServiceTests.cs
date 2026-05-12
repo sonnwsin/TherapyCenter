@@ -10,162 +10,106 @@ namespace TherapyCenter.Tests.Services
 {
     public class AuthServiceTests
     {
-        private readonly Mock<IUserRepository> _userRepositoryMock;
-        private readonly Mock<IJwtHelper> _jwtHelperMock;
-        private readonly AuthService _authService;
+        private readonly Mock<IUserRepository> _userRepositoryMock = new();
+        private readonly Mock<IJwtHelper> _jwtHelperMock = new();
+        private readonly AuthService _service;
 
         public AuthServiceTests()
         {
-            _userRepositoryMock = new Mock<IUserRepository>();
-            _jwtHelperMock = new Mock<IJwtHelper>();
-
-            _authService = new AuthService(
+            _service = new AuthService(
                 _userRepositoryMock.Object,
-                _jwtHelperMock.Object
-            );
+                _jwtHelperMock.Object);
         }
 
-<<<<<<< HEAD
-=======
-        // ================= LOGIN TESTS =================
->>>>>>> 2b063e61420f3c1a2515de62c29ccecde3d9689e
-
         [Fact]
-        public async Task Login_Should_Return_Token_When_Credentials_Are_Valid()
+        public async Task LoginAsync_Should_Return_Response_When_Credentials_Are_Valid()
         {
             // Arrange
-            var loginDto = new LoginRequestDto
+            var request = new LoginRequestDto
             {
-                Email = "test@example.com",
-                Password = "123456"
+                Email = "doctor@test.com",
+                Password = "password123"
             };
 
             var user = new User
             {
                 UserId = 1,
-                Email = "test@example.com",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
-                Role = "Patient"
-            };
-
-            _userRepositoryMock
-                .Setup(x => x.GetByEmailAsync(loginDto.Email))
-                .ReturnsAsync(user);
-
-            _jwtHelperMock
-                .Setup(x => x.GenerateToken(It.IsAny<User>()))
-                .Returns("fake-jwt-token");
-
-            // Act
-            var result = await _authService.LoginAsync(loginDto);
-
-            // Assert
-            result.Should().NotBeNull();
-            result!.Token.Should().Be("fake-jwt-token");
-        }
-
-        [Fact]
-        public async Task Login_Should_Return_Null_When_User_Not_Found()
-        {
-            // Arrange
-            var loginDto = new LoginRequestDto
-            {
-                Email = "notfound@example.com",
-                Password = "123456"
-            };
-
-            _userRepositoryMock
-                .Setup(x => x.GetByEmailAsync(loginDto.Email))
-                .ReturnsAsync((User?)null);
-
-            // Act
-            var result = await _authService.LoginAsync(loginDto);
-
-            // Assert
-            result.Should().BeNull();
-        }
-
-        [Fact]
-        public async Task Login_Should_Return_Null_When_Password_Is_Invalid()
-        {
-            // Arrange
-            var loginDto = new LoginRequestDto
-            {
-                Email = "test@example.com",
-                Password = "wrongpassword"
-            };
-
-            var user = new User
-            {
-                UserId = 1,
-                Email = "test@example.com",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
-                Role = "Patient"
-            };
-
-            _userRepositoryMock
-                .Setup(x => x.GetByEmailAsync(loginDto.Email))
-                .ReturnsAsync(user);
-
-            // Act
-            var result = await _authService.LoginAsync(loginDto);
-
-            // Assert
-            result.Should().BeNull();
-        }
-
-        // ================= REGISTER TESTS =================
-
-        [Fact]
-        public async Task Register_Should_Create_User_When_Data_Is_Valid()
-        {
-            // Arrange
-            var request = new RegisterRequestDto
-            {
-                FirstName = "John",
-                LastName = "Doe",
-                Email = "john@example.com",
-                Password = "123456",
-                Role = "Doctor",
-                PhoneNumber = "1234567890"
-            };
-
-            _userRepositoryMock
-                .Setup(x => x.GetByEmailAsync(request.Email))
-                .ReturnsAsync((User?)null);
-
-            _userRepositoryMock
-                .Setup(x => x.AddUserAsync(It.IsAny<User>()))
-                .ReturnsAsync((User u) => u);
-
-            // Act
-            var result = await _authService.RegisterAsync(request);
-
-            // Assert
-            result.Should().NotBeNull();
-            result.Email.Should().Be(request.Email);
-            result.Role.Should().Be(request.Role);
-        }
-
-        [Fact]
-        public async Task Register_Should_Throw_Exception_When_User_Already_Exists()
-        {
-            // Arrange
-            var request = new RegisterRequestDto
-            {
-                Email = "test@example.com",
-                Password = "123456",
+                FirstName = "Test",
+                LastName = "Doctor",
+                Email = request.Email,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
                 Role = "Doctor"
             };
 
-            var existingUser = new User { Email = request.Email };
-
             _userRepositoryMock
-                .Setup(x => x.GetByEmailAsync(request.Email))
-                .ReturnsAsync(existingUser);
+                .Setup(repo => repo.GetByEmailAsync(request.Email))
+                .ReturnsAsync(user);
+
+            _jwtHelperMock
+                .Setup(jwt => jwt.GenerateToken(user))
+                .Returns("test-token");
 
             // Act
-            Func<Task> act = async () => await _authService.RegisterAsync(request);
+            var result = await _service.LoginAsync(request);
+
+            // Assert
+            result.Should().NotBeNull();
+            result!.Email.Should().Be(request.Email);
+            result.Role.Should().Be("Doctor");
+            result.Token.Should().Be("test-token");
+        }
+
+        [Fact]
+        public async Task LoginAsync_Should_Return_Null_When_Password_Is_Invalid()
+        {
+            // Arrange
+            var request = new LoginRequestDto
+            {
+                Email = "doctor@test.com",
+                Password = "wrong-password"
+            };
+
+            var user = new User
+            {
+                UserId = 1,
+                FirstName = "Test",
+                LastName = "Doctor",
+                Email = request.Email,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("correct-password"),
+                Role = "Doctor"
+            };
+
+            _userRepositoryMock
+                .Setup(repo => repo.GetByEmailAsync(request.Email))
+                .ReturnsAsync(user);
+
+            // Act
+            var result = await _service.LoginAsync(request);
+
+            // Assert
+            result.Should().BeNull();
+            _jwtHelperMock.Verify(jwt => jwt.GenerateToken(It.IsAny<User>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task RegisterAsync_Should_Throw_When_Email_Already_Exists()
+        {
+            // Arrange
+            var request = new RegisterRequestDto
+            {
+                FirstName = "New",
+                LastName = "User",
+                Email = "existing@test.com",
+                Password = "password123",
+                Role = "Guardian"
+            };
+
+            _userRepositoryMock
+                .Setup(repo => repo.GetByEmailAsync(request.Email))
+                .ReturnsAsync(new User { Email = request.Email });
+
+            // Act
+            Func<Task> act = async () => await _service.RegisterAsync(request);
 
             // Assert
             await act.Should().ThrowAsync<Exception>()
@@ -173,26 +117,49 @@ namespace TherapyCenter.Tests.Services
         }
 
         [Fact]
-        public async Task Register_Should_Throw_Exception_When_Role_Is_Invalid()
+        public async Task RegisterAsync_Should_Generate_Jwt_For_New_User()
         {
             // Arrange
             var request = new RegisterRequestDto
             {
-                Email = "test@example.com",
-                Password = "123456",
-                Role = "Admin" // ❌ not allowed
+                FirstName = "Jane",
+                LastName = "Guardian",
+                Email = "jane@test.com",
+                Password = "password123",
+                Role = "Guardian",
+                PhoneNumber = "9999999999"
+            };
+
+            var createdUser = new User
+            {
+                UserId = 10,
+                FirstName = request.FirstName,
+                LastName = request.LastName,
+                Email = request.Email,
+                Role = request.Role,
+                PhoneNumber = request.PhoneNumber
             };
 
             _userRepositoryMock
-                .Setup(x => x.GetByEmailAsync(request.Email))
+                .Setup(repo => repo.GetByEmailAsync(request.Email))
                 .ReturnsAsync((User?)null);
 
+            _userRepositoryMock
+                .Setup(repo => repo.AddUserAsync(It.IsAny<User>()))
+                .ReturnsAsync(createdUser);
+
+            _jwtHelperMock
+                .Setup(jwt => jwt.GenerateToken(createdUser))
+                .Returns("new-user-token");
+
             // Act
-            Func<Task> act = async () => await _authService.RegisterAsync(request);
+            var result = await _service.RegisterAsync(request);
 
             // Assert
-            await act.Should().ThrowAsync<Exception>()
-                .WithMessage("Invalid role selection");
+            result.UserId.Should().Be(createdUser.UserId);
+            result.Email.Should().Be(request.Email);
+            result.Token.Should().Be("new-user-token");
+            _jwtHelperMock.Verify(jwt => jwt.GenerateToken(createdUser), Times.Once);
         }
     }
 }

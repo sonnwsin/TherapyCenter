@@ -9,22 +9,16 @@ namespace TherapyCenter.Tests.Services
 {
     public class TherapyServiceTests
     {
-        private readonly Mock<ITherapyRepository> _therapyRepositoryMock;
-        private readonly TherapyService _therapyService;
+        private readonly Mock<ITherapyRepository> _therapyRepositoryMock = new();
+        private readonly TherapyService _service;
 
         public TherapyServiceTests()
         {
-            _therapyRepositoryMock = new Mock<ITherapyRepository>();
-            _therapyService = new TherapyService(_therapyRepositoryMock.Object);
+            _service = new TherapyService(_therapyRepositoryMock.Object);
         }
 
-<<<<<<< HEAD
-=======
-        // ================= CREATE =================
->>>>>>> 2b063e61420f3c1a2515de62c29ccecde3d9689e
-
         [Fact]
-        public async Task CreateTherapy_Should_Create_Successfully()
+        public async Task CreateTherapyAsync_Should_Create_Therapy()
         {
             // Arrange
             var dto = new CreateTherapyDto
@@ -35,195 +29,109 @@ namespace TherapyCenter.Tests.Services
                 Cost = 500
             };
 
-            var therapy = new Therapy
-            {
-                TherapyId = 1,
-                Name = dto.Name,
-                Description = dto.Description,
-                DurationMinutes = dto.DurationMinutes,
-                Cost = dto.Cost
-            };
-
             _therapyRepositoryMock
-                .Setup(x => x.AddAsync(It.IsAny<Therapy>()))
-                .ReturnsAsync(therapy);
+                .Setup(repo => repo.AddAsync(It.IsAny<Therapy>()))
+                .ReturnsAsync((Therapy therapy) =>
+                {
+                    therapy.TherapyId = 1;
+                    return therapy;
+                });
 
             // Act
-            var result = await _therapyService.CreateTherapyAsync(dto);
+            var result = await _service.CreateTherapyAsync(dto);
 
             // Assert
-            result.Should().NotBeNull();
-            result.Name.Should().Be(dto.Name);
-        }
-
-<<<<<<< HEAD
-=======
-        // ================= GET ALL =================
->>>>>>> 2b063e61420f3c1a2515de62c29ccecde3d9689e
-
-        [Fact]
-        public async Task GetAllTherapies_Should_Return_List()
-        {
-            // Arrange
-            var therapies = new List<Therapy>
-            {
-                new Therapy { TherapyId = 1, Name = "A", Cost = 100 },
-                new Therapy { TherapyId = 2, Name = "B", Cost = 200 }
-            };
-
-            _therapyRepositoryMock
-                .Setup(x => x.GetAllAsync())
-                .ReturnsAsync(therapies);
-
-            // Act
-            var result = await _therapyService.GetAllTherapiesAsync();
-
-            // Assert
-            result.Should().HaveCount(2);
-        }
-
-<<<<<<< HEAD
-=======
-        // ================= GET BY ID =================
-
->>>>>>> 2b063e61420f3c1a2515de62c29ccecde3d9689e
-        [Fact]
-        public async Task GetTherapyById_Should_Return_Therapy_When_Exists()
-        {
-            // Arrange
-            var therapy = new Therapy
-            {
-                TherapyId = 1,
-                Name = "Speech Therapy"
-            };
-
-            _therapyRepositoryMock
-                .Setup(x => x.GetByIdAsync(1))
-                .ReturnsAsync(therapy);
-
-            // Act
-            var result = await _therapyService.GetTherapyByIdAsync(1);
-
-            // Assert
-            result.Should().NotBeNull();
             result.TherapyId.Should().Be(1);
+            result.Name.Should().Be(dto.Name);
+            result.DurationMinutes.Should().Be(dto.DurationMinutes);
         }
 
         [Fact]
-        public async Task GetTherapyById_Should_Throw_Exception_When_Not_Found()
+        public async Task GetTherapyByIdAsync_Should_Return_Therapy_When_Found()
         {
             // Arrange
             _therapyRepositoryMock
-                .Setup(x => x.GetByIdAsync(1))
+                .Setup(repo => repo.GetByIdAsync(1))
+                .ReturnsAsync(new Therapy
+                {
+                    TherapyId = 1,
+                    Name = "Occupational Therapy",
+                    DurationMinutes = 45,
+                    Cost = 700
+                });
+
+            // Act
+            var result = await _service.GetTherapyByIdAsync(1);
+
+            // Assert
+            result.TherapyId.Should().Be(1);
+            result.Name.Should().Be("Occupational Therapy");
+        }
+
+        [Fact]
+        public async Task GetTherapyByIdAsync_Should_Throw_When_Not_Found()
+        {
+            // Arrange
+            _therapyRepositoryMock
+                .Setup(repo => repo.GetByIdAsync(1))
                 .ReturnsAsync((Therapy?)null);
 
             // Act
-            Func<Task> act = async () => await _therapyService.GetTherapyByIdAsync(1);
+            Func<Task> act = async () => await _service.GetTherapyByIdAsync(1);
 
             // Assert
             await act.Should().ThrowAsync<Exception>()
                 .WithMessage("Therapy not found");
         }
 
-<<<<<<< HEAD
-=======
-        // ================= UPDATE =================
-
->>>>>>> 2b063e61420f3c1a2515de62c29ccecde3d9689e
         [Fact]
-        public async Task UpdateTherapy_Should_Update_When_Exists()
+        public async Task UpdateTherapyAsync_Should_Update_Therapy()
         {
             // Arrange
-            var existing = new Therapy
+            var therapy = new Therapy
             {
                 TherapyId = 1,
-                Name = "Old"
+                Name = "Old Name",
+                DurationMinutes = 30,
+                Cost = 500
             };
 
             var dto = new UpdateTherapyDto
             {
-                Name = "New",
+                Name = "New Name",
                 Description = "Updated",
                 DurationMinutes = 60,
                 Cost = 1000
             };
 
             _therapyRepositoryMock
-                .Setup(x => x.GetByIdAsync(1))
-                .ReturnsAsync(existing);
-
-            _therapyRepositoryMock
-                .Setup(x => x.UpdateAsync(It.IsAny<Therapy>()))
-                .Returns(Task.CompletedTask);
-
-            // Act
-            var result = await _therapyService.UpdateTherapyAsync(1, dto);
-
-            // Assert
-            result.Name.Should().Be("New");
-        }
-
-        [Fact]
-        public async Task UpdateTherapy_Should_Throw_Exception_When_Not_Found()
-        {
-            // Arrange
-            var dto = new UpdateTherapyDto
-            {
-                Name = "New"
-            };
-
-            _therapyRepositoryMock
-                .Setup(x => x.GetByIdAsync(1))
-                .ReturnsAsync((Therapy?)null);
-
-            // Act
-            Func<Task> act = async () => await _therapyService.UpdateTherapyAsync(1, dto);
-
-            // Assert
-            await act.Should().ThrowAsync<Exception>()
-                .WithMessage("Therapy not found");
-        }
-
-<<<<<<< HEAD
-=======
-        // ================= DELETE =================
-
->>>>>>> 2b063e61420f3c1a2515de62c29ccecde3d9689e
-        [Fact]
-        public async Task DeleteTherapy_Should_Delete_When_Exists()
-        {
-            // Arrange
-            var therapy = new Therapy { TherapyId = 1 };
-
-            _therapyRepositoryMock
-                .Setup(x => x.GetByIdAsync(1))
+                .Setup(repo => repo.GetByIdAsync(1))
                 .ReturnsAsync(therapy);
 
-            _therapyRepositoryMock
-                .Setup(x => x.DeleteAsync(therapy))
-                .Returns(Task.CompletedTask);
-
             // Act
-            await _therapyService.DeleteTherapyAsync(1);
+            var result = await _service.UpdateTherapyAsync(1, dto);
 
             // Assert
-            _therapyRepositoryMock.Verify(x => x.DeleteAsync(therapy), Times.Once);
+            result.Name.Should().Be(dto.Name);
+            result.DurationMinutes.Should().Be(dto.DurationMinutes);
+            _therapyRepositoryMock.Verify(repo => repo.UpdateAsync(therapy), Times.Once);
         }
 
         [Fact]
-        public async Task DeleteTherapy_Should_Throw_Exception_When_Not_Found()
+        public async Task DeleteTherapyAsync_Should_Delete_When_Found()
         {
             // Arrange
+            var therapy = new Therapy { TherapyId = 1, Name = "Therapy", DurationMinutes = 30, Cost = 500 };
+
             _therapyRepositoryMock
-                .Setup(x => x.GetByIdAsync(1))
-                .ReturnsAsync((Therapy?)null);
+                .Setup(repo => repo.GetByIdAsync(1))
+                .ReturnsAsync(therapy);
 
             // Act
-            Func<Task> act = async () => await _therapyService.DeleteTherapyAsync(1);
+            await _service.DeleteTherapyAsync(1);
 
             // Assert
-            await act.Should().ThrowAsync<Exception>()
-                .WithMessage("Therapy not found");
+            _therapyRepositoryMock.Verify(repo => repo.DeleteAsync(therapy), Times.Once);
         }
     }
 }

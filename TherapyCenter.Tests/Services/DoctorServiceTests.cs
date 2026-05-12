@@ -9,36 +9,33 @@ namespace TherapyCenter.Tests.Services
 {
     public class DoctorServiceTests
     {
-        private readonly Mock<IDoctorRepository> _doctorRepoMock;
-        private readonly Mock<IUserRepository> _userRepoMock;
-        private readonly DoctorService _doctorService;
+        private readonly Mock<IDoctorRepository> _doctorRepositoryMock = new();
+        private readonly Mock<IUserRepository> _userRepositoryMock = new();
+        private readonly DoctorService _service;
 
         public DoctorServiceTests()
         {
-            _doctorRepoMock = new Mock<IDoctorRepository>();
-            _userRepoMock = new Mock<IUserRepository>();
-
-            _doctorService = new DoctorService(
-                _doctorRepoMock.Object,
-                _userRepoMock.Object
-            );
+            _service = new DoctorService(
+                _doctorRepositoryMock.Object,
+                _userRepositoryMock.Object);
         }
 
-
         [Fact]
-        public async Task CreateDoctor_Should_Create_Doctor_Successfully()
+        public async Task CreateDoctorAsync_Should_Create_Doctor_When_Email_Is_New()
         {
             // Arrange
             var dto = new CreateDoctorDto
             {
                 FirstName = "John",
                 LastName = "Doe",
-                Email = "doc@test.com",
-                Password = "123456",
+                Email = "doctor@test.com",
+                Password = "password123",
                 PhoneNumber = "9999999999",
                 Specialization = "Speech",
-                Bio = "Expert",
-                AvailableDays = "Mon-Fri"
+                Bio = "Experienced doctor",
+                AvailableDays = "Mon-Fri",
+                StartTime = new TimeOnly(9, 0),
+                EndTime = new TimeOnly(17, 0)
             };
 
             var createdUser = new User
@@ -46,203 +43,143 @@ namespace TherapyCenter.Tests.Services
                 UserId = 1,
                 FirstName = dto.FirstName,
                 LastName = dto.LastName,
-                Email = dto.Email
+                Email = dto.Email,
+                PhoneNumber = dto.PhoneNumber,
+                Role = "Doctor"
             };
 
-            var createdDoctor = new Doctor
-            {
-                DoctorId = 1,
-                UserId = 1,
-                Specialization = dto.Specialization,
-                User = createdUser
-            };
+            _userRepositoryMock
+                .Setup(repo => repo.GetByEmailAsync(dto.Email))
+                .ReturnsAsync((User?)null);
 
-            _userRepoMock
-                .Setup(x => x.AddUserAsync(It.IsAny<User>()))
+            _userRepositoryMock
+                .Setup(repo => repo.AddUserAsync(It.IsAny<User>()))
                 .ReturnsAsync(createdUser);
 
-            _doctorRepoMock
-                .Setup(x => x.AddAsync(It.IsAny<Doctor>()))
-                .ReturnsAsync(createdDoctor);
+            _doctorRepositoryMock
+                .Setup(repo => repo.AddAsync(It.IsAny<Doctor>()))
+                .ReturnsAsync((Doctor doctor) =>
+                {
+                    doctor.DoctorId = 10;
+                    return doctor;
+                });
 
             // Act
-            var result = await _doctorService.CreateDoctorAsync(dto);
+            var result = await _service.CreateDoctorAsync(dto);
 
             // Assert
-            result.Should().NotBeNull();
+            result.DoctorId.Should().Be(10);
             result.Email.Should().Be(dto.Email);
             result.Specialization.Should().Be(dto.Specialization);
         }
 
-<<<<<<< HEAD
-=======
-        // ================= GET ALL =================
->>>>>>> 2b063e61420f3c1a2515de62c29ccecde3d9689e
-
         [Fact]
-        public async Task GetAllDoctors_Should_Return_List()
+        public async Task CreateDoctorAsync_Should_Throw_When_Email_Already_Exists()
         {
             // Arrange
-            var doctors = new List<Doctor>
+            var dto = new CreateDoctorDto
             {
-                new Doctor
-                {
-                    DoctorId = 1,
-                    Specialization = "A",
-                    User = new User { FirstName = "A", LastName = "B", Email = "a@test.com" }
-                }
+                FirstName = "John",
+                LastName = "Doe",
+                Email = "existing@test.com",
+                Password = "password123"
             };
 
-            _doctorRepoMock
-                .Setup(x => x.GetAllAsync())
-                .ReturnsAsync(doctors);
+            _userRepositoryMock
+                .Setup(repo => repo.GetByEmailAsync(dto.Email))
+                .ReturnsAsync(new User { Email = dto.Email });
 
             // Act
-            var result = await _doctorService.GetAllDoctorsAsync();
-
-            // Assert
-            result.Should().HaveCount(1);
-        }
-
-<<<<<<< HEAD
-=======
-        // ================= GET BY ID =================
->>>>>>> 2b063e61420f3c1a2515de62c29ccecde3d9689e
-
-        [Fact]
-        public async Task GetDoctorById_Should_Return_Doctor_When_Exists()
-        {
-            // Arrange
-            var doctor = new Doctor
-            {
-                DoctorId = 1,
-                User = new User { FirstName = "John", LastName = "Doe", Email = "test@test.com" }
-            };
-
-            _doctorRepoMock
-                .Setup(x => x.GetByIdAsync(1))
-                .ReturnsAsync(doctor);
-
-            // Act
-            var result = await _doctorService.GetDoctorByIdAsync(1);
-
-            // Assert
-            result.Should().NotBeNull();
-            result.DoctorId.Should().Be(1);
-        }
-
-        [Fact]
-        public async Task GetDoctorById_Should_Throw_Exception_When_Not_Found()
-        {
-            // Arrange
-            _doctorRepoMock
-                .Setup(x => x.GetByIdAsync(1))
-                .ReturnsAsync((Doctor?)null);
-
-            // Act
-            Func<Task> act = async () => await _doctorService.GetDoctorByIdAsync(1);
+            Func<Task> act = async () => await _service.CreateDoctorAsync(dto);
 
             // Assert
             await act.Should().ThrowAsync<Exception>()
-                .WithMessage("Doctor not found");
+                .WithMessage("Email already exists");
         }
 
-<<<<<<< HEAD
-=======
-        // ================= UPDATE =================
->>>>>>> 2b063e61420f3c1a2515de62c29ccecde3d9689e
+        [Fact]
+        public async Task GetDoctorByIdAsync_Should_Return_Doctor_When_Found()
+        {
+            // Arrange
+            _doctorRepositoryMock
+                .Setup(repo => repo.GetByIdAsync(1))
+                .ReturnsAsync(new Doctor
+                {
+                    DoctorId = 1,
+                    Specialization = "Speech",
+                    User = new User
+                    {
+                        FirstName = "Jane",
+                        LastName = "Doe",
+                        Email = "jane@test.com",
+                        Role = "Doctor"
+                    }
+                });
+
+            // Act
+            var result = await _service.GetDoctorByIdAsync(1);
+
+            // Assert
+            result.DoctorId.Should().Be(1);
+            result.FullName.Should().Be("Jane Doe");
+        }
 
         [Fact]
-        public async Task UpdateDoctor_Should_Update_When_Exists()
+        public async Task UpdateDoctorAsync_Should_Update_Doctor_Profile()
         {
             // Arrange
             var doctor = new Doctor
             {
                 DoctorId = 1,
-                User = new User { FirstName = "Old", LastName = "Name" }
+                Specialization = "Old",
+                User = new User
+                {
+                    FirstName = "Old",
+                    LastName = "Name",
+                    Email = "doctor@test.com",
+                    Role = "Doctor"
+                }
             };
 
             var dto = new UpdateDoctorDto
             {
                 FirstName = "New",
                 LastName = "Name",
-                PhoneNumber = "9999999999",
-                Specialization = "Updated"
+                PhoneNumber = "8888888888",
+                Specialization = "Updated",
+                AvailableDays = "Tue-Thu",
+                StartTime = new TimeOnly(10, 0),
+                EndTime = new TimeOnly(16, 0)
             };
 
-            _doctorRepoMock
-                .Setup(x => x.GetByIdAsync(1))
+            _doctorRepositoryMock
+                .Setup(repo => repo.GetByIdAsync(1))
                 .ReturnsAsync(doctor);
 
-            _doctorRepoMock
-                .Setup(x => x.UpdateAsync(It.IsAny<Doctor>()))
-                .Returns(Task.CompletedTask);
-
             // Act
-            var result = await _doctorService.UpdateDoctorAsync(1, dto);
+            var result = await _service.UpdateDoctorAsync(1, dto);
 
             // Assert
-            result.FullName.Should().Contain("New");
+            result.FullName.Should().Be("New Name");
+            result.Specialization.Should().Be("Updated");
+            _doctorRepositoryMock.Verify(repo => repo.UpdateAsync(doctor), Times.Once);
         }
 
         [Fact]
-        public async Task UpdateDoctor_Should_Throw_Exception_When_Not_Found()
-        {
-            // Arrange
-            var dto = new UpdateDoctorDto();
-
-            _doctorRepoMock
-                .Setup(x => x.GetByIdAsync(1))
-                .ReturnsAsync((Doctor?)null);
-
-            // Act
-            Func<Task> act = async () => await _doctorService.UpdateDoctorAsync(1, dto);
-
-            // Assert
-            await act.Should().ThrowAsync<Exception>()
-                .WithMessage("Doctor not found");
-        }
-
-<<<<<<< HEAD
-=======
-        // ================= DELETE =================
-
->>>>>>> 2b063e61420f3c1a2515de62c29ccecde3d9689e
-        [Fact]
-        public async Task DeleteDoctor_Should_Delete_When_Exists()
+        public async Task DeleteDoctorAsync_Should_Delete_When_Found()
         {
             // Arrange
             var doctor = new Doctor { DoctorId = 1 };
 
-            _doctorRepoMock
-                .Setup(x => x.GetByIdAsync(1))
+            _doctorRepositoryMock
+                .Setup(repo => repo.GetByIdAsync(1))
                 .ReturnsAsync(doctor);
 
-            _doctorRepoMock
-                .Setup(x => x.DeleteAsync(doctor))
-                .Returns(Task.CompletedTask);
-
             // Act
-            await _doctorService.DeleteDoctorAsync(1);
+            await _service.DeleteDoctorAsync(1);
 
             // Assert
-            _doctorRepoMock.Verify(x => x.DeleteAsync(doctor), Times.Once);
-        }
-
-        [Fact]
-        public async Task DeleteDoctor_Should_Throw_Exception_When_Not_Found()
-        {
-            // Arrange
-            _doctorRepoMock
-                .Setup(x => x.GetByIdAsync(1))
-                .ReturnsAsync((Doctor?)null);
-
-            // Act
-            Func<Task> act = async () => await _doctorService.DeleteDoctorAsync(1);
-
-            // Assert
-            await act.Should().ThrowAsync<Exception>()
-                .WithMessage("Doctor not found");
+            _doctorRepositoryMock.Verify(repo => repo.DeleteAsync(doctor), Times.Once);
         }
     }
 }

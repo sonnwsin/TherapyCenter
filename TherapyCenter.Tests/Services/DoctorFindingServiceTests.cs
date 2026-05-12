@@ -1,6 +1,9 @@
-﻿using FluentAssertions;
+﻿using System.Security.Claims;
+using FluentAssertions;
+using Microsoft.AspNetCore.Http;
 using Moq;
 using TherapyCenter.DTOs.DoctorFinding;
+using TherapyCenter.Exceptions;
 using TherapyCenter.Models;
 using TherapyCenter.Repositories.Interfaces;
 using TherapyCenter.Services.Implementations;
@@ -9,194 +12,149 @@ namespace TherapyCenter.Tests.Services
 {
     public class DoctorFindingServiceTests
     {
-        private readonly Mock<IDoctorFindingRepository> _repoMock;
+        private readonly Mock<IDoctorFindingRepository> _findingRepositoryMock = new();
+        private readonly Mock<IAppointmentRepository> _appointmentRepositoryMock = new();
+        private readonly Mock<IDoctorRepository> _doctorRepositoryMock = new();
+        private readonly HttpContextAccessor _httpContextAccessor = new();
         private readonly DoctorFindingService _service;
 
         public DoctorFindingServiceTests()
         {
-            _repoMock = new Mock<IDoctorFindingRepository>();
-            _service = new DoctorFindingService(_repoMock.Object);
+            _httpContextAccessor.HttpContext = new DefaultHttpContext
+            {
+                User = CreateUser(5, "Doctor")
+            };
+
+            _service = new DoctorFindingService(
+                _findingRepositoryMock.Object,
+                _appointmentRepositoryMock.Object,
+                _doctorRepositoryMock.Object,
+                _httpContextAccessor);
         }
 
-<<<<<<< HEAD
-
-=======
-        // ================= CREATE =================
->>>>>>> 2b063e61420f3c1a2515de62c29ccecde3d9689e
-
         [Fact]
-        public async Task Create_Should_Create_Finding()
+        public async Task CreateAsync_Should_Create_Finding_When_Doctor_Owns_Appointment()
         {
             // Arrange
             var dto = new CreateDoctorFindingDto
             {
                 AppointmentId = 1,
-                Observations = "Obs",
-                Recommendations = "Rec"
+                Observations = "Patient improved",
+                Recommendations = "Continue therapy"
             };
 
-            var created = new DoctorFinding
-            {
-                FindingId = 1,
-                AppointmentId = dto.AppointmentId,
-                Observations = dto.Observations,
-                Recommendations = dto.Recommendations,
-                CreatedAt = DateTime.UtcNow
-            };
+            _appointmentRepositoryMock
+                .Setup(repo => repo.GetByIdAsync(dto.AppointmentId))
+                .ReturnsAsync(new Appointment { AppointmentId = dto.AppointmentId, DoctorId = 10 });
 
-            _repoMock
-                .Setup(x => x.AddAsync(It.IsAny<DoctorFinding>()))
-                .ReturnsAsync(created);
+            _doctorRepositoryMock
+                .Setup(repo => repo.GetByUserIdAsync(5))
+                .ReturnsAsync(new Doctor { DoctorId = 10, UserId = 5 });
+
+            _findingRepositoryMock
+                .Setup(repo => repo.GetByAppointmentIdAsync(dto.AppointmentId))
+                .ReturnsAsync(new List<DoctorFinding>());
+
+            _findingRepositoryMock
+                .Setup(repo => repo.AddAsync(It.IsAny<DoctorFinding>()))
+                .ReturnsAsync((DoctorFinding finding) =>
+                {
+                    finding.FindingId = 7;
+                    return finding;
+                });
 
             // Act
             var result = await _service.CreateAsync(dto);
 
             // Assert
-            result.Should().NotBeNull();
+            result.FindingId.Should().Be(7);
             result.AppointmentId.Should().Be(dto.AppointmentId);
-        }
-
-<<<<<<< HEAD
-
-=======
-        // ================= GET ALL =================
->>>>>>> 2b063e61420f3c1a2515de62c29ccecde3d9689e
-
-        [Fact]
-        public async Task GetAll_Should_Return_List()
-        {
-            _repoMock
-                .Setup(x => x.GetAllAsync())
-                .ReturnsAsync(new List<DoctorFinding> { new(), new() });
-
-            var result = await _service.GetAllAsync();
-
-            result.Should().HaveCount(2);
-        }
-
-<<<<<<< HEAD
-=======
-        // ================= GET BY ID =================
->>>>>>> 2b063e61420f3c1a2515de62c29ccecde3d9689e
-
-        [Fact]
-        public async Task GetById_Should_Return_When_Exists()
-        {
-            _repoMock
-                .Setup(x => x.GetByIdAsync(1))
-                .ReturnsAsync(new DoctorFinding { FindingId = 1 });
-
-            var result = await _service.GetByIdAsync(1);
-
-            result.FindingId.Should().Be(1);
+            result.Observations.Should().Be(dto.Observations);
         }
 
         [Fact]
-        public async Task GetById_Should_Throw_When_Not_Found()
+        public async Task CreateAsync_Should_Throw_When_Doctor_Does_Not_Own_Appointment()
         {
-            _repoMock
-                .Setup(x => x.GetByIdAsync(1))
-                .ReturnsAsync((DoctorFinding?)null);
-
-            Func<Task> act = async () => await _service.GetByIdAsync(1);
-
-            await act.Should().ThrowAsync<Exception>()
-                .WithMessage("Finding not found");
-        }
-
-<<<<<<< HEAD
-=======
-        // ================= GET BY APPOINTMENT =================
->>>>>>> 2b063e61420f3c1a2515de62c29ccecde3d9689e
-
-        [Fact]
-        public async Task GetByAppointment_Should_Return_List()
-        {
-            _repoMock
-                .Setup(x => x.GetByAppointmentIdAsync(1))
-                .ReturnsAsync(new List<DoctorFinding> { new(), new() });
-
-            var result = await _service.GetByAppointmentAsync(1);
-
-            result.Should().HaveCount(2);
-        }
-
-<<<<<<< HEAD
-=======
-        // ================= UPDATE =================
->>>>>>> 2b063e61420f3c1a2515de62c29ccecde3d9689e
-
-        [Fact]
-        public async Task Update_Should_Update_When_Exists()
-        {
-            var finding = new DoctorFinding
+            // Arrange
+            var dto = new CreateDoctorFindingDto
             {
-                FindingId = 1,
-                Observations = "Old"
+                AppointmentId = 1,
+                Observations = "Notes"
             };
 
-            var dto = new UpdateDoctorFindingDto
+            _appointmentRepositoryMock
+                .Setup(repo => repo.GetByIdAsync(dto.AppointmentId))
+                .ReturnsAsync(new Appointment { AppointmentId = dto.AppointmentId, DoctorId = 10 });
+
+            _doctorRepositoryMock
+                .Setup(repo => repo.GetByUserIdAsync(5))
+                .ReturnsAsync(new Doctor { DoctorId = 99, UserId = 5 });
+
+            // Act
+            Func<Task> act = async () => await _service.CreateAsync(dto);
+
+            // Assert
+            await act.Should().ThrowAsync<ForbiddenException>()
+                .WithMessage("You can only add or edit findings for your own appointments.");
+        }
+
+        [Fact]
+        public async Task CreateAsync_Should_Throw_When_Finding_Already_Exists_For_Appointment()
+        {
+            // Arrange
+            var dto = new CreateDoctorFindingDto
             {
-                Observations = "New",
-                Recommendations = "Updated"
+                AppointmentId = 1,
+                Observations = "Duplicate"
             };
 
-            _repoMock.Setup(x => x.GetByIdAsync(1))
-                .ReturnsAsync(finding);
+            _appointmentRepositoryMock
+                .Setup(repo => repo.GetByIdAsync(dto.AppointmentId))
+                .ReturnsAsync(new Appointment { AppointmentId = dto.AppointmentId, DoctorId = 10 });
 
-            _repoMock.Setup(x => x.UpdateAsync(finding))
-                .Returns(Task.CompletedTask);
+            _doctorRepositoryMock
+                .Setup(repo => repo.GetByUserIdAsync(5))
+                .ReturnsAsync(new Doctor { DoctorId = 10, UserId = 5 });
 
-            var result = await _service.UpdateAsync(1, dto);
+            _findingRepositoryMock
+                .Setup(repo => repo.GetByAppointmentIdAsync(dto.AppointmentId))
+                .ReturnsAsync(new List<DoctorFinding>
+                {
+                    new() { FindingId = 3, AppointmentId = dto.AppointmentId }
+                });
 
-            result.Observations.Should().Be("New");
-        }
+            // Act
+            Func<Task> act = async () => await _service.CreateAsync(dto);
 
-        [Fact]
-        public async Task Update_Should_Throw_When_Not_Found()
-        {
-            _repoMock.Setup(x => x.GetByIdAsync(1))
-                .ReturnsAsync((DoctorFinding?)null);
-
-            var dto = new UpdateDoctorFindingDto();
-
-            Func<Task> act = async () => await _service.UpdateAsync(1, dto);
-
+            // Assert
             await act.Should().ThrowAsync<Exception>()
-                .WithMessage("Finding not found");
-        }
-
-<<<<<<< HEAD
-=======
-        // ================= DELETE =================
->>>>>>> 2b063e61420f3c1a2515de62c29ccecde3d9689e
-
-        [Fact]
-        public async Task Delete_Should_Delete_When_Exists()
-        {
-            var finding = new DoctorFinding { FindingId = 1 };
-
-            _repoMock.Setup(x => x.GetByIdAsync(1))
-                .ReturnsAsync(finding);
-
-            _repoMock.Setup(x => x.DeleteAsync(finding))
-                .Returns(Task.CompletedTask);
-
-            await _service.DeleteAsync(1);
-
-            _repoMock.Verify(x => x.DeleteAsync(finding), Times.Once);
+                .WithMessage("A finding already exists for this appointment.");
+            _findingRepositoryMock.Verify(repo => repo.AddAsync(It.IsAny<DoctorFinding>()), Times.Never);
         }
 
         [Fact]
-        public async Task Delete_Should_Throw_When_Not_Found()
+        public async Task GetAllAsync_Should_Throw_When_User_Is_Not_Admin_Or_Receptionist()
         {
-            _repoMock.Setup(x => x.GetByIdAsync(1))
-                .ReturnsAsync((DoctorFinding?)null);
+            // Arrange
+            _httpContextAccessor.HttpContext!.User = CreateUser(5, "Doctor");
 
-            Func<Task> act = async () => await _service.DeleteAsync(1);
+            // Act
+            Func<Task> act = async () => await _service.GetAllAsync();
 
-            await act.Should().ThrowAsync<Exception>()
-                .WithMessage("Finding not found");
+            // Assert
+            await act.Should().ThrowAsync<ForbiddenException>()
+                .WithMessage("You are not allowed to list all findings.");
+        }
+
+        private static ClaimsPrincipal CreateUser(int userId, string role)
+        {
+            var claims = new[]
+            {
+                new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+                new Claim(ClaimTypes.Role, role)
+            };
+
+            return new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
         }
     }
 }
