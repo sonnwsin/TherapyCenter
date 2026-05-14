@@ -27,6 +27,13 @@ namespace TherapyCenter.Repositories.Implementations
                 .FirstOrDefaultAsync(u => u.Email == email);
         }
 
+        public async Task<User?> GetByEmailIgnoreCaseAsync(string email)
+        {
+            var trimmed = email.Trim();
+            return await _context.Users
+                .FirstOrDefaultAsync(u => u.Email.ToLower() == trimmed.ToLower());
+        }
+
         public async Task<User?> GetByIdAsync(int id)
         {
             return await _context.Users.FindAsync(id);

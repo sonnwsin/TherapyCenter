@@ -1,10 +1,13 @@
 ﻿using FluentAssertions;
+using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using TherapyCenter.DTOs.Auth;
 using TherapyCenter.Helpers;
 using TherapyCenter.Models;
 using TherapyCenter.Repositories.Interfaces;
 using TherapyCenter.Services.Implementations;
+using TherapyCenter.Services.Interfaces;
 
 namespace TherapyCenter.Tests.Services
 {
@@ -12,13 +15,25 @@ namespace TherapyCenter.Tests.Services
     {
         private readonly Mock<IUserRepository> _userRepositoryMock = new();
         private readonly Mock<IJwtHelper> _jwtHelperMock = new();
+        private readonly Mock<IDistributedCache> _cacheMock = new();
+        private readonly Mock<IEmailService> _emailMock = new();
         private readonly AuthService _service;
 
         public AuthServiceTests()
         {
+            _cacheMock
+                .Setup(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<DistributedCacheEntryOptions>(), default))
+                .Returns(Task.CompletedTask);
+            _cacheMock
+                .Setup(c => c.RemoveAsync(It.IsAny<string>(), default))
+                .Returns(Task.CompletedTask);
+
             _service = new AuthService(
                 _userRepositoryMock.Object,
-                _jwtHelperMock.Object);
+                _jwtHelperMock.Object,
+                _cacheMock.Object,
+                _emailMock.Object,
+                NullLogger<AuthService>.Instance);
         }
 
         [Fact]
@@ -160,6 +175,26 @@ namespace TherapyCenter.Tests.Services
             result.Email.Should().Be(request.Email);
             result.Token.Should().Be("new-user-token");
             _jwtHelperMock.Verify(jwt => jwt.GenerateToken(createdUser), Times.Once);
+        }
+
+        [Fact]
+        public async Task ForgotPasswordForGuardianAsync_Should_Throw_When_User_Is_Not_Guardian()
+        {
+            var dto = new ForgotPasswordRequestDto { Email = "doc@test.com" };
+            _userRepositoryMock
+                .Setup(r => r.GetByEmailIgnoreCaseAsync(dto.Email))
+                .ReturnsAsync(new User
+                {
+                    Email = dto.Email,
+                    Role = "Doctor",
+                    PasswordHash = "x"
+                });
+
+            Func<Task> act = async () => await _service.ForgotPasswordForGuardianAsync(dto);
+
+            await act.Should().ThrowAsync<ArgumentException>()
+                .WithMessage("No guardian account found for this email.");
+            _emailMock.Verify(e => e.SendEmailAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
         }
     }
 }

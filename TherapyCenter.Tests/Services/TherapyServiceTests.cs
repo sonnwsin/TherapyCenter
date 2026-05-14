@@ -1,4 +1,5 @@
 ﻿using FluentAssertions;
+using Microsoft.Extensions.Caching.Distributed;
 using Moq;
 using TherapyCenter.DTOs.Therapy;
 using TherapyCenter.Models;
@@ -10,11 +11,22 @@ namespace TherapyCenter.Tests.Services
     public class TherapyServiceTests
     {
         private readonly Mock<ITherapyRepository> _therapyRepositoryMock = new();
+        private readonly Mock<IDistributedCache> _cacheMock = new();
         private readonly TherapyService _service;
 
         public TherapyServiceTests()
         {
-            _service = new TherapyService(_therapyRepositoryMock.Object);
+            _cacheMock
+                .Setup(c => c.GetAsync(It.IsAny<string>(), default))
+                .ReturnsAsync((byte[]?)null);
+            _cacheMock
+                .Setup(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<DistributedCacheEntryOptions>(), default))
+                .Returns(Task.CompletedTask);
+            _cacheMock
+                .Setup(c => c.RemoveAsync(It.IsAny<string>(), default))
+                .Returns(Task.CompletedTask);
+
+            _service = new TherapyService(_therapyRepositoryMock.Object, _cacheMock.Object);
         }
 
         [Fact]

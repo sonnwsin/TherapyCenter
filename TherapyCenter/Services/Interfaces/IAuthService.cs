@@ -6,5 +6,9 @@ namespace TherapyCenter.Services.Interfaces
     {
         Task<AuthResponseDto> RegisterAsync(RegisterRequestDto request);
         Task<AuthResponseDto?> LoginAsync(LoginRequestDto request);
+
+        Task ForgotPasswordForGuardianAsync(ForgotPasswordRequestDto dto);
+        Task<VerifyOtpResponseDto> VerifyOtpAsync(VerifyOtpRequestDto dto);
+        Task ResetPasswordForGuardianAsync(ResetPasswordRequestDto dto);
     }
 }

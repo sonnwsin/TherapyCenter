@@ -34,6 +34,10 @@ namespace TherapyCenter
             builder.Services.AddSingleton(razorpaySettings);
 
 
+            var emailSettings = builder.Configuration.GetSection("EmailSettings").Get<EmailSettings>() ?? new EmailSettings();
+            builder.Services.AddSingleton(emailSettings);
+            builder.Services.AddScoped<IEmailService, EmailService>();
+
             builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
             builder.Services.AddScoped<PaymentService>();
 
