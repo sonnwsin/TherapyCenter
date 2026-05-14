@@ -28,6 +28,9 @@ const Dashboard = () => {
   const [adminStatsError, setAdminStatsError] = useState("");
   const [myApptCount, setMyApptCount] = useState(null);
   const [doctorApptCount, setDoctorApptCount] = useState(null);
+  const [therapyPrices, setTherapyPrices] = useState([]);
+  const [therapyPricesStatus, setTherapyPricesStatus] = useState("idle");
+  const [therapyPricesError, setTherapyPricesError] = useState("");
 
   useEffect(() => {
     if (user?.role !== ROLES.ADMIN) return;
@@ -54,6 +57,32 @@ const Dashboard = () => {
       }
     };
     load();
+  }, [user?.role]);
+
+  useEffect(() => {
+    if (user?.role !== ROLES.GUARDIAN) return;
+    let cancelled = false;
+    (async () => {
+      setTherapyPricesStatus("loading");
+      setTherapyPrices([]);
+      setTherapyPricesError("");
+      try {
+        const res = await API.get("/therapy/prices");
+        const list = Array.isArray(res.data) ? res.data : [];
+        if (!cancelled) {
+          setTherapyPrices(list);
+          setTherapyPricesStatus("success");
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setTherapyPricesError(getApiErrorMessage(err, "Could not load therapy prices."));
+          setTherapyPricesStatus("error");
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [user?.role]);
 
   useEffect(() => {
@@ -168,6 +197,66 @@ const Dashboard = () => {
       {user?.role === ROLES.GUARDIAN && myApptCount != null && (
         <div className="tc-stat-grid mb-4" style={{ maxWidth: 400 }}>
           <StatTile iconClass="bi-list-task" variant="blue" label="Family bookings" value={myApptCount} />
+        </div>
+      )}
+
+      {user?.role === ROLES.GUARDIAN && (
+        <div className="tc-card mb-4">
+          <div className="tc-card-header d-flex align-items-center justify-content-between">
+            <span>
+              <i className="bi bi-heart-pulse me-2" aria-hidden="true" />
+              Therapy prices
+            </span>
+          </div>
+          <div className="p-3 p-md-4">
+            {(therapyPricesStatus === "idle" || therapyPricesStatus === "loading") && (
+              <div className="d-flex justify-content-center py-4">
+                <div className="spinner-border text-primary" role="status">
+                  <span className="visually-hidden">Loading therapy prices…</span>
+                </div>
+              </div>
+            )}
+            {therapyPricesStatus === "error" && therapyPricesError && (
+              <div className="alert alert-danger border-0 shadow-sm mb-0" role="alert">
+                {therapyPricesError}
+              </div>
+            )}
+            {therapyPricesStatus === "success" && therapyPrices.length === 0 && (
+              <div className="tc-empty-state py-3">
+                <div className="tc-empty-state-icon">
+                  <i className="bi bi-inbox" aria-hidden="true" />
+                </div>
+                <p className="mb-0 text-secondary">No therapies are listed yet. Check back later.</p>
+              </div>
+            )}
+            {therapyPricesStatus === "success" && therapyPrices.length > 0 && (
+              <div className="table-responsive rounded-3 border">
+                <table className="table table-hover align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th>Therapy</th>
+                      <th className="text-end">Price</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {therapyPrices.map((row) => {
+                      const id = row.id ?? row.Id;
+                      const name = row.therapyName ?? row.TherapyName ?? "—";
+                      const price = row.price ?? row.Price;
+                      return (
+                        <tr key={id}>
+                          <td className="fw-medium">{name}</td>
+                          <td className="text-end text-secondary">
+                            {price != null && price !== "" ? `₹ ${Number(price).toFixed(2)}` : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
