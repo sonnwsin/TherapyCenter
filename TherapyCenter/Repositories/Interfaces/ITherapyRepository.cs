@@ -1,4 +1,5 @@
-﻿using TherapyCenter.Models;
+﻿using TherapyCenter.DTOs.Therapy;
+using TherapyCenter.Models;
 
 namespace TherapyCenter.Repositories.Interfaces
 {
@@ -9,6 +10,6 @@ namespace TherapyCenter.Repositories.Interfaces
         Task<Therapy?> GetByIdAsync(int id);
         Task UpdateAsync(Therapy therapy);
         Task DeleteAsync(Therapy therapy);
-
+        Task<List<TherapyPriceDto>> GetAllTherapyPricesAsync();
     }
 }

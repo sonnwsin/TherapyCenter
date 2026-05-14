@@ -1,3 +1,4 @@
+using Serilog;
 using TherapyCenter.Models;
 using TherapyCenter.Repositories.Interfaces;
 
@@ -5,12 +6,15 @@ namespace TherapyCenter.Seeding
 {
     /// <summary>
     /// Ensures at least one Admin user exists after the app starts.
-    /// Runs once per startup; skips if any user already has Role "Admin".
+    /// Skips if any user already has Role "Admin" (no duplicate admins on restart).
     /// </summary>
     public static class AdminSeeder
     {
-        private const string AdminEmail = "admin@gmail.com";
-        private const string AdminPassword = "Admin@123";
+        /// <summary>Seeded admin login (JWT / Postman).</summary>
+        public const string AdminEmail = "admin@therapy.com";
+
+        /// <summary>Plain text — stored as BCrypt hash in database.</summary>
+        public const string AdminPassword = "123456";
 
         public static async Task EnsureDefaultAdminAsync(IServiceProvider services)
         {
@@ -37,6 +41,7 @@ namespace TherapyCenter.Seeding
             };
 
             await users.AddUserAsync(admin).ConfigureAwait(false);
+            Log.Information("AdminSeeder: created default admin {Email}.", AdminEmail);
         }
     }
 }

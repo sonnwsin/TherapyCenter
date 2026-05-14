@@ -1,4 +1,6 @@
-﻿using TherapyCenter.DTOs.Therapy;
+﻿using System.Text.Json;
+using Microsoft.Extensions.Caching.Distributed;
+using TherapyCenter.DTOs.Therapy;
 using TherapyCenter.Models;
 using TherapyCenter.Repositories.Interfaces;
 using TherapyCenter.Services.Interfaces;
@@ -7,11 +9,16 @@ namespace TherapyCenter.Services.Implementations
 {
     public class TherapyService : ITherapyService
     {
-        private readonly ITherapyRepository _therapyRepository;
+        /// <summary>Redis entry key for the therapy price list (cache-aside).</summary>
+        private const string TherapyPricesCacheKey = "therapy_prices";
 
-        public TherapyService(ITherapyRepository therapyRepository)
+        private readonly ITherapyRepository _therapyRepository;
+        private readonly IDistributedCache _cache;
+
+        public TherapyService(ITherapyRepository therapyRepository, IDistributedCache cache)
         {
             _therapyRepository = therapyRepository;
+            _cache = cache;
         }
 
 
@@ -73,6 +80,9 @@ namespace TherapyCenter.Services.Implementations
 
             await _therapyRepository.UpdateAsync(therapy);
 
+            // Cache invalidation: the stored list of all prices is now stale, so remove it from Redis.
+            await _cache.RemoveAsync(TherapyPricesCacheKey);
+
             return MapToResponse(therapy);
         }
 
@@ -88,6 +98,43 @@ namespace TherapyCenter.Services.Implementations
                 throw new Exception("Therapy not found");
 
             await _therapyRepository.DeleteAsync(therapy);
+        }
+
+        /// <summary>
+        /// Returns all therapy prices using cache-aside against Redis (<see cref="IDistributedCache"/>).
+        /// </summary>
+        public async Task<List<TherapyPriceDto>> GetAllTherapyPricesAsync()
+        {
+            // --- Step 1: Try Redis first (fast path) ---
+            // GetAsync returns null if the key does not exist or Redis is empty for that key.
+            var cachedBytes = await _cache.GetAsync(TherapyPricesCacheKey);
+
+            if (cachedBytes is { Length: > 0 })
+            {
+                // --- Step 2: Deserialize JSON bytes produced when we populated the cache ---
+                var fromCache = JsonSerializer.Deserialize<List<TherapyPriceDto>>(cachedBytes);
+                if (fromCache is not null)
+                    return fromCache;
+                // If deserialization fails, fall through and rebuild from SQL (defensive).
+            }
+
+            // --- Step 3: Cache miss (or bad payload) — load from SQL via repository projection ---
+            var fromDb = await _therapyRepository.GetAllTherapyPricesAsync();
+
+            // --- Step 4: Serialize to UTF-8 JSON bytes (same shape we deserialize in step 2) ---
+            var payload = JsonSerializer.SerializeToUtf8Bytes(fromDb);
+
+            // --- Step 5: Write to Redis with a TTL so prices refresh periodically even without updates ---
+            await _cache.SetAsync(
+                TherapyPricesCacheKey,
+                payload,
+                new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(30)
+                });
+
+            // --- Step 6: Return fresh data to the caller (and callers after this hit Redis until expiry or invalidation) ---
+            return fromDb;
         }
 
 

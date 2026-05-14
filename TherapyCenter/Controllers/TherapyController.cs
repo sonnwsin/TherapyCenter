@@ -32,6 +32,13 @@ namespace TherapyCenter.Controllers
             return Ok(result);
         }
 
+        /// <summary>All therapy prices; list is cached in Redis from TherapyService (cache-aside).</summary>
+        [HttpGet("/api/therapy/prices")]
+        public async Task<IActionResult> GetAllTherapyPrices()
+        {
+            var result = await _therapyService.GetAllTherapyPricesAsync();
+            return Ok(result);
+        }
 
         [HttpGet("{id}")]
         public async Task<IActionResult> GetById(int id)

@@ -103,6 +103,12 @@ namespace TherapyCenter
             builder.Services.AddScoped<IReportRepository, ReportRepository>();
             builder.Services.AddScoped<IReportService, ReportService>();
 
+            var redisConfiguration = builder.Configuration["Redis:Configuration"] ?? "localhost:6379";
+            builder.Services.AddStackExchangeRedisCache(options =>
+            {
+                options.Configuration = redisConfiguration;
+            });
+
             builder.Services.Configure<ApiBehaviorOptions>(options =>
             {
                 options.InvalidModelStateResponseFactory = context =>
@@ -145,6 +151,7 @@ namespace TherapyCenter
             var app = builder.Build();
 
             await AdminSeeder.EnsureDefaultAdminAsync(app.Services);
+            await DemoDataSeeder.SeedIfNeededAsync(app.Services);
 
             app.UseMiddleware<ExceptionMiddleware>();
 

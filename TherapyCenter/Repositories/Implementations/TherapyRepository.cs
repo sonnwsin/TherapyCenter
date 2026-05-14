@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using TherapyCenter.Data;
+using TherapyCenter.DTOs.Therapy;
 using TherapyCenter.Models;
 using TherapyCenter.Repositories.Interfaces;
 
@@ -43,6 +44,18 @@ namespace TherapyCenter.Repositories.Implementations
             await _context.SaveChangesAsync();
         }
 
-
+        public async Task<List<TherapyPriceDto>> GetAllTherapyPricesAsync()
+        {
+            return await _context.Therapies
+                .AsNoTracking()
+                .OrderBy(t => t.Name)
+                .Select(t => new TherapyPriceDto
+                {
+                    Id = t.TherapyId,
+                    TherapyName = t.Name,
+                    Price = t.Cost
+                })
+                .ToListAsync();
+        }
     }
 }
